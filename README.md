@@ -13,7 +13,7 @@ A POC project where we have an AI-powered OpenAPI specification generator with m
 - **100% Valid OpenAPI**: Auto-validates and fixes until spec is valid
 - **MCP Demonstrated**: Real-time context sharing between agents
 - **REST Best Practices**: POST→201, DELETE→204, proper schemas
--  **AI-Enhanced Documentation**: Smart documentation generation with intelligent AI improvements
+- **AI-Enhanced Documentation**: Smart documentation generation with intelligent AI improvements
 - **Interactive Editing**: Context-aware AI assistant for real-time documentation enhancement
 
 ## Quick Start
