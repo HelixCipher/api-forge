@@ -1,0 +1,225 @@
+services:
+  # Frontend React application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - api-forge-network
+    profiles:
+      - cpu
+      - gpu-nvidia
+      - gpu-amd
+
+  # Python FastAPI backend (CPU)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama-cpu:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    depends_on:
+      ollama-cpu:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; resp=urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0) if resp.getcode()==200 else sys.exit(1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      api-forge-network:
+        aliases:
+          - backend
+    profiles:
+      - cpu
+
+  # Backend for NVIDIA GPU
+  backend-gpu-nvidia:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama-gpu-nvidia:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    depends_on:
+      ollama-gpu-nvidia:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; resp=urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0) if resp.getcode()==200 else sys.exit(1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      api-forge-network:
+        aliases:
+          - backend
+    profiles:
+      - gpu-nvidia
+
+  # Backend for AMD GPU
+  backend-gpu-amd:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama-gpu-amd:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    depends_on:
+      ollama-gpu-amd:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; resp=urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0) if resp.getcode()==200 else sys.exit(1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      api-forge-network:
+        aliases:
+          - backend
+    profiles:
+      - gpu-amd
+
+  # Ollama CPU-only service
+  ollama-cpu:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - api-forge-network
+    profiles:
+      - cpu
+
+  # Ollama with NVIDIA GPU support
+  ollama-gpu-nvidia:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - api-forge-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - gpu-nvidia
+
+  # Ollama with AMD GPU support (ROCm)
+  ollama-gpu-amd:
+    image: ollama/ollama:rocm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    restart: unless-stopped
+    networks:
+      - api-forge-network
+    profiles:
+      - gpu-amd
+
+  # Model puller for CPU
+  ollama-pull-cpu:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama-cpu
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama (CPU) to be ready..."
+        until curl -s http://ollama-cpu:11434/api/tags > /dev/null 2>&1; do
+          echo "Ollama not ready, waiting..."
+          sleep 5
+        done
+        echo "Ollama is ready, pulling model..."
+        OLLAMA_HOST=http://ollama-cpu:11434 ollama pull ${OLLAMA_MODEL:-llama3.2}
+        echo "Model ${OLLAMA_MODEL:-llama3.2} is ready!"
+    networks:
+      - api-forge-network
+    restart: "no"
+    profiles:
+      - cpu
+
+  # Model puller for NVIDIA GPU
+  ollama-pull-gpu-nvidia:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama-gpu-nvidia
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama (NVIDIA GPU) to be ready..."
+        until curl -s http://ollama-gpu-nvidia:11434/api/tags > /dev/null 2>&1; do
+          echo "Ollama not ready, waiting..."
+          sleep 5
+        done
+        echo "Ollama is ready, pulling model..."
+        OLLAMA_HOST=http://ollama-gpu-nvidia:11434 ollama pull ${OLLAMA_MODEL:-llama3.2}
+        echo "Model ${OLLAMA_MODEL:-llama3.2} is ready!"
+    networks:
+      - api-forge-network
+    restart: "no"
+    profiles:
+      - gpu-nvidia
+
+  # Model puller for AMD GPU
+  ollama-pull-gpu-amd:
+    image: ollama/ollama:rocm
+    depends_on:
+      - ollama-gpu-amd
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama (AMD GPU) to be ready..."
+        until curl -s http://ollama-gpu-amd:11434/api/tags > /dev/null 2>&1; do
+          echo "Ollama not ready, waiting..."
+          sleep 5
+        done
+        echo "Ollama is ready, pulling model..."
+        OLLAMA_HOST=http://ollama-gpu-amd:11434 ollama pull ${OLLAMA_MODEL:-llama3.2}
+        echo "Model ${OLLAMA_MODEL:-llama3.2} is ready!"
+    networks:
+      - api-forge-network
+    restart: "no"
+    profiles:
+      - gpu-amd
+
+volumes:
+  ollama-data:
+    driver: local
+
+networks:
+  api-forge-network:
+    driver: bridge
