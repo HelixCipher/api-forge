@@ -4,7 +4,7 @@
   <img src="https://github.com/HelixCipher/api-forge/blob/main/Project_Demonstration_GIF.gif" width="800" alt="Project Project_Demonstration_GIF.gif"/>
 </p>
 
-A POC project where we have an AI-powered OpenAPI specification generator with multi-agent architecture.
+POC project of an AI-powered OpenAPI generator.
 
 ## Key Features
 
